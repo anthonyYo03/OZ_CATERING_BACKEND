@@ -1,0 +1,44 @@
+# dependencies
+node_modules/
+
+# environment variables
+.env
+.env.local
+.env.*.local
+
+# build output
+dist/
+build/
+.next/
+out/
+
+# logs
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+pnpm-debug.log*
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# editor files
+.vscode/
+.idea/
+
+# coverage
+coverage/
+
+# cache
+.cache/
+.parcel-cache/
+
+# TypeScript
+*.tsbuildinfo
+# local database cluster, generated files and backups
+.local/
+storage/
+backups/
+.dev-credentials.txt
+test-results/

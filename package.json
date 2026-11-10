@@ -1,0 +1,53 @@
+{
+  "name": "oz-catering-server",
+  "version": "1.0.0",
+  "private": true,
+  "description": "OZ Catering backend: authenticated area-separated invoicing, payments, returns, statements and reports",
+  "type": "module",
+  "main": "server.js",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node --watch server.js",
+    "worker": "node jobs/worker.js",
+    "db:migrate": "node db/migrate.js up",
+    "db:status": "node db/migrate.js status",
+    "db:seed:dev": "node scripts/seed-dev.js",
+    "db:local:init": "node scripts/local-db.js init",
+    "db:local:start": "node scripts/local-db.js start",
+    "db:local:stop": "node scripts/local-db.js stop",
+    "db:local:status": "node scripts/local-db.js status",
+    "user:create-admin": "node scripts/create-admin.js",
+    "user:reset-password": "node scripts/reset-password.js",
+    "jobs:rollover": "node scripts/run-job.js rollover",
+    "backup": "node scripts/backup.js",
+    "restore:test": "node scripts/restore-test.js",
+    "reconcile": "node scripts/reconcile.js",
+    "numbering:reconcile": "node scripts/reconcile-numbering.js",
+    "test": "node --import ./tests/setup-env.js --test --test-concurrency=1 \"tests/**/*.test.js\"",
+    "test:unit": "node --import ./tests/setup-env.js --test \"tests/unit/*.test.js\""
+  },
+  "license": "UNLICENSED",
+  "dependencies": {
+    "@oz/shared": "file:../shared",
+    "bcrypt": "^6.0.0",
+    "cookie-parser": "^1.4.7",
+    "cors": "^2.8.6",
+    "dotenv": "^18.0.9",
+    "express": "^5.3.0",
+    "helmet": "^8.3.0",
+    "jpeg-js": "^0.4.4",
+    "jsonwebtoken": "^9.0.3",
+    "pdfmake": "^0.3.12",
+    "pg": "^8.23.1",
+    "pngjs": "^7.0.0",
+    "sequelize": "^6.37.8",
+    "umzug": "^3.8.3",
+    "zod": "^4.6.7"
+  },
+  "devDependencies": {
+    "pdfjs-dist": "^6.4.299"
+  }
+}
