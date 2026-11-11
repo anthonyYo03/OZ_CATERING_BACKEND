@@ -5,6 +5,7 @@ import Customer from "./customer.model.js";
 import ReturnInvoice from "./returnInvoice.model.js";
 import ReturnInvoiceItem from "./returnInvoiceItem.model.js";
 import User from "./user.model.js";
+import Receipt from "./receipt.model.js";
 
 // Each customer, invoice and return belongs to the user who created it
 User.hasMany(Customer, { foreignKey: 'user_id', onDelete: 'RESTRICT' });
@@ -40,3 +41,13 @@ ReturnInvoiceItem.belongsTo(InvoiceItem, { foreignKey: 'invoice_item_id' });
 
 Item.hasMany(ReturnInvoiceItem, { foreignKey: 'item_id', onDelete: 'SET NULL' });
 ReturnInvoiceItem.belongsTo(Item, { foreignKey: 'item_id' });
+
+// Receipts
+User.hasMany(Receipt, { foreignKey: 'user_id', onDelete: 'RESTRICT' });
+Receipt.belongsTo(User, { foreignKey: 'user_id' });
+
+Invoice.hasMany(Receipt, { foreignKey: 'invoice_id', onDelete: 'RESTRICT' });
+Receipt.belongsTo(Invoice, { foreignKey: 'invoice_id' });
+
+Customer.hasMany(Receipt, { foreignKey: 'customer_id', onDelete: 'RESTRICT' });
+Receipt.belongsTo(Customer, { foreignKey: 'customer_id' });

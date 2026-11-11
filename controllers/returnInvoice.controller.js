@@ -68,7 +68,7 @@ export const createReturn = async (req, res) => {
     const { lines, total } = await buildReturnLines(invoice.invoice_id, items, t);
 
     const last = await ReturnInvoice.max('return_number', { where: { user_id: req.user_id }, transaction: t });
-    const return_number = (last || 0) + 1;
+    const return_number = Math.max(last || 0, 999) + 1; // return numbers start at 1000
 
     const returnInvoice = await ReturnInvoice.create({
       user_id: req.user_id,

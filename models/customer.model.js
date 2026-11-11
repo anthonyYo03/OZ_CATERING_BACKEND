@@ -34,7 +34,7 @@ const User = sequelize.define('Customer', {
   customer_email: {
 
     type: DataTypes.STRING,
-    allowNull: false
+    allowNull: true
 
   },
 

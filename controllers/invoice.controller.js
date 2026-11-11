@@ -43,7 +43,7 @@ export const createInvoice = async (req, res) => {
 
     // 3. Next invoice number for this user
     const last = await Invoice.max('invoice_number', { where: { user_id: req.user_id }, transaction: t });
-    const invoice_number = (last || 0) + 1;
+    const invoice_number = Math.max(last || 0, 999) + 1; // invoice numbers start at 1000
 
     // 4. Create the invoice and its lines
     const invoice = await Invoice.create({
@@ -157,7 +157,11 @@ export const updateInvoice = async (req, res) => {
 
 // GET /api/invoices/:id  -> shows the copied prices, not the current ones
 export const getInvoice = async (req, res) => {
-  const invoice = await Invoice.findOne({ where: { invoice_id: req.params.id, user_id: req.user_id }, include: customerLines });
+  const invoice = await Invoice.findOne({
+    where: { invoice_id: req.params.id, user_id: req.user_id },
+    // The customer's email and phone are shown on the invoice PDF
+    include: [customerLines, { model: Customer, attributes: ['customer_email', 'customer_phone'] }]
+  });
   if (!invoice) return res.status(404).json({ message: "Invoice not found" });
   return res.json(invoice);
 };

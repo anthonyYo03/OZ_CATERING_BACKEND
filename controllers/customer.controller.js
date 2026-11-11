@@ -5,14 +5,15 @@ const createCustomer = async (req, res) => {
   const { customer_name, customer_email, customer_phone, customer_address } = req.body;
 
   try {
-    if (!customer_name || !customer_email || !customer_phone || !customer_address) {
-      return res.status(400).send({ message: 'All customer fields are required' });
+    if (!customer_name || !customer_phone || !customer_address) {
+      return res.status(400).send({ message: 'Name, phone and address are required' });
     }
 
     const newCustomer = await Customer.create({
       user_id: req.user_id,
       customer_name,
-      customer_email,
+      // Email is optional. Save an empty one as null so several customers without email don't clash
+      customer_email: customer_email || null,
       customer_phone,
       customer_address
     });
@@ -65,7 +66,7 @@ const updateCustomer = async (req, res) => {
     // Only change the fields that were sent. Old invoices keep their own copy of the name.
     await customer.update({
       ...(customer_name !== undefined && { customer_name }),
-      ...(customer_email !== undefined && { customer_email }),
+      ...(customer_email !== undefined && { customer_email: customer_email || null }),
       ...(customer_phone !== undefined && { customer_phone }),
       ...(customer_address !== undefined && { customer_address })
     });
