@@ -1,3 +1,4 @@
+import { Op } from "sequelize";
 import sequelize from "../db/db.js";
 import Invoice from "../models/invoice.model.js";
 import Customer from "../models/customer.model.js";
@@ -15,6 +16,19 @@ const parseAmount = (amount) => {
   return Math.round(value * 100) / 100;
 };
 
+// How much is still owed on an invoice: its total minus the receipts already paid for it.
+// exceptReceiptId leaves out the receipt being edited, so its old amount is not counted.
+const leftToPay = async (invoice, t, exceptReceiptId) => {
+  const where = { invoice_id: invoice.invoice_id };
+  if (exceptReceiptId) where.receipt_id = { [Op.ne]: exceptReceiptId };
+  const paid = await Receipt.sum('amount', { where, transaction: t });
+  return Math.round((Number(invoice.invoice_total_amount) - Number(paid || 0)) * 100) / 100;
+};
+
+const tooMuchMessage = (left) => left <= 0
+  ? "This invoice is already fully paid"
+  : `This invoice only has $${left.toFixed(2)} left to pay`;
+
 // POST /api/receipts
 // body: { invoice_id, payment_date, amount, payment_method, notes }
 export const createReceipt = async (req, res) => {
@@ -26,10 +40,18 @@ export const createReceipt = async (req, res) => {
 
   const t = await sequelize.transaction();
   try {
-    const invoice = await Invoice.findByPk(invoice_id, { transaction: t });
+    // Lock the invoice so two receipts saved at the same time can't both pass the check below
+    const invoice = await Invoice.findByPk(invoice_id, { transaction: t, lock: t.LOCK.UPDATE });
     if (!invoice || invoice.user_id !== req.user_id) {
       await t.rollback();
       return res.status(404).json({ message: "Invoice not found" });
+    }
+
+    // The receipts of an invoice can never add up to more than the invoice
+    const left = await leftToPay(invoice, t);
+    if (value > left) {
+      await t.rollback();
+      return res.status(400).json({ message: tooMuchMessage(left) });
     }
 
     // Next receipt number for this user
@@ -82,27 +104,50 @@ export const getReceipt = async (req, res) => {
 export const updateReceipt = async (req, res) => {
   const { payment_date, amount, payment_method, notes } = req.body;
 
+  const t = await sequelize.transaction();
   try {
-    const receipt = await Receipt.findOne({ where: { receipt_id: req.params.id, user_id: req.user_id } });
-    if (!receipt) return res.status(404).json({ message: "Receipt not found" });
+    const receipt = await Receipt.findOne({ where: { receipt_id: req.params.id, user_id: req.user_id }, transaction: t });
+    if (!receipt) {
+      await t.rollback();
+      return res.status(404).json({ message: "Receipt not found" });
+    }
 
     if (amount !== undefined) {
       const value = parseAmount(amount);
-      if (value === null) return res.status(400).json({ message: "Amount must be more than 0" });
+      if (value === null) {
+        await t.rollback();
+        return res.status(400).json({ message: "Amount must be more than 0" });
+      }
+
+      // The receipts of an invoice can never add up to more than the invoice.
+      // Only checked when the amount goes up, so an old receipt can still be edited without making it worse.
+      if (value > Number(receipt.amount)) {
+        const invoice = await Invoice.findByPk(receipt.invoice_id, { transaction: t, lock: t.LOCK.UPDATE });
+        const left = await leftToPay(invoice, t, receipt.receipt_id);
+        if (value > left) {
+          await t.rollback();
+          return res.status(400).json({ message: tooMuchMessage(left) });
+        }
+      }
       receipt.amount = value;
     }
     if (payment_date !== undefined) {
-      if (!payment_date) return res.status(400).json({ message: "Payment date is required" });
+      if (!payment_date) {
+        await t.rollback();
+        return res.status(400).json({ message: "Payment date is required" });
+      }
       receipt.payment_date = payment_date;
     }
     if (payment_method !== undefined) receipt.payment_method = payment_method;
     if (notes !== undefined) receipt.notes = notes;
 
-    await receipt.save();
+    await receipt.save({ transaction: t });
+    await t.commit();
 
     const full = await Receipt.findByPk(receipt.receipt_id, { include: [invoiceInfo, customerContact] });
     return res.json(full);
   } catch (err) {
+    if (!t.finished) await t.rollback();
     return res.status(400).json({ message: err.message });
   }
 };

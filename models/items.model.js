@@ -17,6 +17,13 @@ const Item = sequelize.define('Item', {
 
   },
 
+  user_id: {                 // the user who added this item (empty on old rows from before this existed)
+
+    type: DataTypes.INTEGER,
+    allowNull: true
+
+  },
+
   categories: {
 
     type: DataTypes.ENUM('Sandwiches', 'Salads'),
@@ -30,8 +37,6 @@ const Item = sequelize.define('Item', {
   item_name: {
 
     type: DataTypes.STRING,
-
-    unique: true,
 
     allowNull: false
 
@@ -52,6 +57,11 @@ const Item = sequelize.define('Item', {
     allowNull: true
   }
 
+}, {
+  // Unique per user: two users can each have an item with the same name without seeing each other's
+  indexes: [
+    { unique: true, fields: ['user_id', 'item_name'] }
+  ]
 });
 
 

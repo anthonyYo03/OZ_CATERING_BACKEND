@@ -4,6 +4,7 @@ import Invoice from "../models/invoice.model.js";
 import InvoiceItem from "../models/invoiceItem.model.js";
 import ReturnInvoice from "../models/returnInvoice.model.js";
 import ReturnInvoiceItem from "../models/returnInvoiceItem.model.js";
+import Receipt from "../models/receipt.model.js";
 
 const DATE = /^\d{4}-\d{2}-\d{2}$/;
 const money = n => Math.round(Number(n || 0) * 100) / 100;
@@ -175,7 +176,9 @@ export const getProfit = async (req, res) => {
     const invoiceWhere = { user_id: req.user_id, invoice_issued_date: { [Op.between]: [from, to] } };
     const returnWhere = { user_id: req.user_id, return_date: { [Op.between]: [from, to] } };
 
-    const [soldItems, returnedItems] = await Promise.all([
+    const receiptWhere = { user_id: req.user_id, payment_date: { [Op.between]: [from, to] } };
+
+    const [soldItems, returnedItems, receiptValue] = await Promise.all([
       InvoiceItem.findAll({
         attributes: profitAttributes('InvoiceItem'),
         include: [{ model: Invoice, attributes: [], where: invoiceWhere }],
@@ -187,7 +190,9 @@ export const getProfit = async (req, res) => {
         include: [{ model: ReturnInvoice, attributes: [], where: returnWhere }],
         group: [sequelize.col('ReturnInvoiceItem.item_id')],
         raw: true
-      })
+      }),
+      // Money actually received (receipts) in the range
+      Receipt.sum('amount', { where: receiptWhere })
     ]);
 
     const items = new Map();
@@ -226,6 +231,8 @@ export const getProfit = async (req, res) => {
       revenue: money(revenue),          // sales minus returns (only lines with a known cost)
       cost: money(cost),
       profit: money(revenue - cost),
+      receipt_value: money(receiptValue),                 // receipts paid in the range
+      profit_per_salary: money(money(receiptValue) - money(cost)),  // receipt value minus cost
       missing_cost_lines: list.reduce((s, i) => s + i.missing_cost_lines, 0),
       items: list
     });

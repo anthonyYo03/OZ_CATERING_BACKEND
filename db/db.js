@@ -14,7 +14,7 @@ const sequelize = new Sequelize(process.env.DATABASE_URL, {
   }
 });
 
-// Customer details and invoice/return numbers used to be unique across the whole app.
+// Customer details, item names and invoice/return numbers used to be unique across the whole app.
 // They are now unique per user, but sync() never removes the old rules, so remove them here.
 // Does nothing once they are gone.
 async function dropAppWideUniqueRules() {
@@ -33,7 +33,8 @@ async function dropAppWideUniqueRules() {
           AND (t.relname, a.attname) IN (
             ('Customers', 'customer_name'), ('Customers', 'customer_email'),
             ('Customers', 'customer_phone'), ('Customers', 'customer_address'),
-            ('Invoices', 'invoice_number'), ('ReturnInvoices', 'return_number')
+            ('Invoices', 'invoice_number'), ('ReturnInvoices', 'return_number'),
+            ('Items', 'item_name')
           )
       LOOP
         EXECUTE format('ALTER TABLE %I DROP CONSTRAINT %I', old_rule.table_name, old_rule.rule_name);

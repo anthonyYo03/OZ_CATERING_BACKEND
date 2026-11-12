@@ -24,7 +24,7 @@ export const createInvoice = async (req, res) => {
 
     // 1. Load the current catalog prices for the requested items
     const ids = items.map(i => i.item_id);
-    const catalog = await Item.findAll({ where: { item_id: ids }, transaction: t });
+    const catalog = await Item.findAll({ where: { item_id: ids, user_id: req.user_id }, transaction: t });
     const byId = new Map(catalog.map(it => [it.item_id, it]));
 
     // 2. Build the lines, copying name + price + cost
@@ -113,7 +113,7 @@ export const updateInvoice = async (req, res) => {
       // Only look up catalog prices for items that are new to this invoice
       const newIds = items.map(i => i.item_id).filter(id => !saved.has(id));
       const catalog = newIds.length
-        ? await Item.findAll({ where: { item_id: newIds }, transaction: t })
+        ? await Item.findAll({ where: { item_id: newIds, user_id: req.user_id }, transaction: t })
         : [];
       const byId = new Map(catalog.map(it => [it.item_id, it]));
 

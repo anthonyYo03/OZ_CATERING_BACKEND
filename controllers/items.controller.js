@@ -17,6 +17,7 @@ const createItem = async (req, res) => {
     }
 
     const newItem = await Item.create({
+      user_id: req.user_id,
       item_name,
       unit_cost,
       unit_price,
@@ -38,7 +39,7 @@ const createItem = async (req, res) => {
 
 const getItems = async (req, res) => {
   try {
-    const items = await Item.findAll({ order: [['categories', 'ASC'], ['item_name', 'ASC']] });
+    const items = await Item.findAll({ where: { user_id: req.user_id }, order: [['categories', 'ASC'], ['item_name', 'ASC']] });
     res.status(200).json(items);
   } catch (error) {
     console.log(error);
@@ -48,7 +49,7 @@ const getItems = async (req, res) => {
 
 const getOneItem = async (req, res) => {
   try {
-    const item = await Item.findByPk(req.params.id);
+    const item = await Item.findOne({ where: { item_id: req.params.id, user_id: req.user_id } });
 
     if (!item) {
       return res.status(404).send({ message: 'Item not found' });
@@ -65,7 +66,7 @@ const updateItem = async (req, res) => {
   const { item_name, categories, unit_cost, unit_price } = req.body;
 
   try {
-    const item = await Item.findByPk(req.params.id);
+    const item = await Item.findOne({ where: { item_id: req.params.id, user_id: req.user_id } });
 
     if (!item) {
       return res.status(404).send({ message: 'Item not found' });
@@ -102,7 +103,7 @@ const updateItem = async (req, res) => {
 
 const deleteItem = async (req, res) => {
   try {
-    const item = await Item.findByPk(req.params.id);
+    const item = await Item.findOne({ where: { item_id: req.params.id, user_id: req.user_id } });
 
     if (!item) {
       return res.status(404).send({ message: 'Item not found' });
