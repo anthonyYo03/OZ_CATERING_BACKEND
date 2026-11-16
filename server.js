@@ -10,6 +10,7 @@ import itemRoutes from './routes/items.routes.js';
 import returnRoutes from './routes/returnInvoice.route.js';
 import summaryRoutes from './routes/summary.route.js';
 import receiptRoutes from './routes/receipt.route.js';
+import duePaymentRoutes from './routes/duePayment.route.js';
 
 
 const app = express();
@@ -32,6 +33,7 @@ app.use("/api/items", itemRoutes);
 app.use("/api/returns", returnRoutes);
 app.use("/api/summary", summaryRoutes);
 app.use("/api/receipts", receiptRoutes);
+app.use("/api/duePayments", duePaymentRoutes);
 
 try {
   console.log('Connecting to database...');
