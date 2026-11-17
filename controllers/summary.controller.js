@@ -160,6 +160,76 @@ const profitAttributes = (model) => {
   ];
 };
 
+// For every invoice issued in the range (with all its returns and receipts so far):
+// - projected: the invoice's profit if the customer pays everything
+// - cash: the part of that profit already paid, profit x (paid / invoice total after returns)
+// - outstanding: what the customer still has to pay on it
+// Lines without a saved cost give no profit, same as the rest of this report.
+const paymentProfit = async (userId, invoiceWhere) => {
+  const invoices = await Invoice.findAll({ where: invoiceWhere, attributes: ['invoice_id', 'customer_id', 'invoice_total_amount'], raw: true });
+  if (invoices.length === 0) return { projected: 0, cash: 0, outstanding: 0 };
+
+  const ids = invoices.map(i => i.invoice_id);
+  const lineProfit = (model) => {
+    const col = (c) => `"${model}"."${c}"`;
+    return sequelize.literal(`SUM(CASE WHEN ${col('unit_cost')} IS NOT NULL THEN ${col('line_total')} - ${col('unit_cost')} * ${col('quantity')} ELSE 0 END)`);
+  };
+
+  const [soldProfit, returnedProfit, returned, paid] = await Promise.all([
+    InvoiceItem.findAll({
+      attributes: ['invoice_id', [lineProfit('InvoiceItem'), 'profit']],
+      where: { invoice_id: ids },
+      group: ['invoice_id'],
+      raw: true
+    }),
+    ReturnInvoiceItem.findAll({
+      attributes: [[sequelize.col('ReturnInvoice.invoice_id'), 'invoice_id'], [lineProfit('ReturnInvoiceItem'), 'profit']],
+      include: [{ model: ReturnInvoice, attributes: [], where: { user_id: userId, invoice_id: ids } }],
+      group: [sequelize.col('ReturnInvoice.invoice_id')],
+      raw: true
+    }),
+    ReturnInvoice.findAll({
+      attributes: ['invoice_id', [sequelize.fn('SUM', sequelize.col('return_total_amount')), 'total']],
+      where: { user_id: userId, invoice_id: ids },
+      group: ['invoice_id'],
+      raw: true
+    }),
+    Receipt.findAll({
+      attributes: ['invoice_id', [sequelize.fn('SUM', sequelize.col('amount')), 'total']],
+      where: { user_id: userId, invoice_id: ids },
+      group: ['invoice_id'],
+      raw: true
+    })
+  ]);
+
+  const byInvoice = (rows, field) => new Map(rows.map(r => [r.invoice_id, Number(r[field] || 0)]));
+  const soldMap = byInvoice(soldProfit, 'profit');
+  const returnedProfitMap = byInvoice(returnedProfit, 'profit');
+  const returnedMap = byInvoice(returned, 'total');
+  const paidMap = byInvoice(paid, 'total');
+
+  // Added up per customer, so paying too much on one invoice counts towards their other invoices
+  // (same as the Due Payments page).
+  const customers = new Map();
+  for (const inv of invoices) {
+    const id = inv.invoice_id;
+    const c = customers.get(inv.customer_id) || { net: 0, paid: 0, profit: 0 };
+    c.net += Number(inv.invoice_total_amount || 0) - (returnedMap.get(id) || 0);
+    c.paid += paidMap.get(id) || 0;
+    c.profit += (soldMap.get(id) || 0) - (returnedProfitMap.get(id) || 0);
+    customers.set(inv.customer_id, c);
+  }
+
+  let projected = 0, cash = 0, outstanding = 0;
+  for (const c of customers.values()) {
+    const paidShare = c.net > 0 ? Math.min(1, c.paid / c.net) : 1;
+    projected += c.profit;
+    cash += c.profit * paidShare;
+    outstanding += Math.max(0, c.net - c.paid);
+  }
+  return { projected: money(projected), cash: money(cash), outstanding: money(outstanding) };
+};
+
 // GET /api/summary/profit?from=2026-11-01&to=2026-11-30
 // profit = (price - cost) x quantity of what was sold in the range, minus the same for what was returned in the range.
 export const getProfit = async (req, res) => {
@@ -178,7 +248,7 @@ export const getProfit = async (req, res) => {
 
     const receiptWhere = { user_id: req.user_id, payment_date: { [Op.between]: [from, to] } };
 
-    const [soldItems, returnedItems, receiptValue] = await Promise.all([
+    const [soldItems, returnedItems, receiptValue, payments] = await Promise.all([
       InvoiceItem.findAll({
         attributes: profitAttributes('InvoiceItem'),
         include: [{ model: Invoice, attributes: [], where: invoiceWhere }],
@@ -192,7 +262,8 @@ export const getProfit = async (req, res) => {
         raw: true
       }),
       // Money actually received (receipts) in the range
-      Receipt.sum('amount', { where: receiptWhere })
+      Receipt.sum('amount', { where: receiptWhere }),
+      paymentProfit(req.user_id, invoiceWhere)
     ]);
 
     const items = new Map();
@@ -233,6 +304,9 @@ export const getProfit = async (req, res) => {
       profit: money(revenue - cost),
       receipt_value: money(receiptValue),                 // receipts paid in the range
       profit_per_salary: money(money(receiptValue) - money(cost)),  // receipt value minus cost
+      projected_profit: payments.projected,         // profit if every invoice in the range is paid in full
+      cash_profit: payments.cash,                   // profit from what has been paid on those invoices
+      outstanding_payments: payments.outstanding,   // what customers still owe on those invoices
       missing_cost_lines: list.reduce((s, i) => s + i.missing_cost_lines, 0),
       items: list
     });
