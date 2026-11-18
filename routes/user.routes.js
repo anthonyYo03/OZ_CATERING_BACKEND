@@ -8,7 +8,8 @@ const router = express.Router();
 
 // POST /register - Register a new user
 
-router.post('/register', userController.registerUser);
+// Registration closed: no new accounts can be created through the API
+// router.post('/register', userController.registerUser);
 
 
 
